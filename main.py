@@ -67,6 +67,25 @@ def admin_only(f):
     return decorated_function
 
 
+def only_commenter(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return abort(403)
+
+        # Check if the current user has made a comment
+        user_comment = db.session.execute(
+            db.select(Comment).where(Comment.author_id == current_user.id)
+        ).scalar()
+
+        if user_comment is None:
+            return abort(403)
+
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
 # CONFIGURE TABLE
 class BlogPost(db.Model):
     __tablename__ = "blog_posts"
@@ -248,6 +267,15 @@ def delete_post(post_id):
     db.session.delete(post_to_delete)
     db.session.commit()
     return redirect(url_for('get_all_posts'))
+
+
+@app.route("/delete/comment/<int:comment_id>/<int:post_id>")
+@only_commenter
+def delete_comment(post_id, comment_id):
+    comment_to_delete = db.get_or_404(Comment, comment_id)
+    db.session.delete(comment_to_delete)
+    db.session.commit()
+    return redirect(url_for('show_post', post_id=post_id))
 
 
 # Below is the code from previous lessons. No changes needed.
