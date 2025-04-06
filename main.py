@@ -1,4 +1,3 @@
-from datetime import date
 from flask import Flask, abort, render_template, redirect, url_for, flash, request
 from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor
@@ -9,11 +8,11 @@ from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Text
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
-# Import your forms from the forms.py
 from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm
 from datetime import date
 import smtplib
 from email.mime.text import MIMEText
+import os
 
 my_email = "mansharaisinghani05@gmail.com"
 my_password = "gsdnytuejhgnsriu"
@@ -304,7 +303,7 @@ def send_email(name, email, phone, message):
         connection.starttls()
         connection.login(my_email, my_password)
         connection.sendmail(
-            from_addr=my_email,
+            from_addr=email,
             to_addrs=my_email,
             msg=msg.as_string()
         )
