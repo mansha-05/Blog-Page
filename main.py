@@ -12,13 +12,16 @@ from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm
 from datetime import date
 import smtplib
 from email.mime.text import MIMEText
+from dotenv import load_dotenv
 import os
 
-my_email = "mansharaisinghani05@gmail.com"
-my_password = "gsdnytuejhgnsriu"
+load_dotenv()
+
+my_email = os.getenv('MAIL_ID')
+my_password = os.getenv('MAIL_PASSWORD')
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
+app.config['SECRET_KEY'] = os.getenv('FLASK_KEY')
 Bootstrap5(app)
 ckeditor = CKEditor(app)
 
@@ -38,7 +41,7 @@ class Base(DeclarativeBase):
     pass
 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///posts.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DB_URI')
 db = SQLAlchemy(model_class=Base)
 db.init_app(app)
 
