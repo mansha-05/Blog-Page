@@ -2,6 +2,8 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, PasswordField
 from wtforms.validators import DataRequired, URL
 from flask_ckeditor import CKEditorField
+from wtforms.validators import ValidationError
+import re
 
 
 # WTForm for creating a blog post
@@ -19,6 +21,17 @@ class RegisterForm(FlaskForm):
     password = PasswordField("Password", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
     submit = SubmitField("Sign me up!")
+
+    def validate_password(self, field):
+        password = field.data
+        if len(password) < 8:
+            raise ValidationError("Password must be at least 8 characters long.")
+        if not re.search(r"\d", password):
+            raise ValidationError("Password must contain at least one number.")
+        if not re.search(r"[A-Z]", password):
+            raise ValidationError("Password must contain at least one uppercase letter.")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+            raise ValidationError("Password must contain at least one special character.")
 
 
 # TODO: Create a LoginForm to login existing users

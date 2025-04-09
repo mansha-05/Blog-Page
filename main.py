@@ -3,27 +3,22 @@ from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor
 from flask_gravatar import Gravatar
 from flask_login import UserMixin, login_user, LoginManager, current_user, logout_user
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import Integer, String, Text
-from functools import wraps
+from models import db, User, BlogPost, Comment
+from decorators import admin_only, only_commenter
 from werkzeug.security import generate_password_hash, check_password_hash
 from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm
 from datetime import date
-import smtplib
-from email.mime.text import MIMEText
+from email_utils import send_email
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-my_email = os.getenv('MAIL_ID')
-my_password = os.getenv('MAIL_PASSWORD')
-
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_KEY')
 Bootstrap5(app)
 ckeditor = CKEditor(app)
+
 
 gravatar = Gravatar(app,
                     size=25,
@@ -36,15 +31,8 @@ gravatar = Gravatar(app,
                     )
 
 
-# CREATE DATABASE
-class Base(DeclarativeBase):
-    pass
-
-
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DB_URI')
-db = SQLAlchemy(model_class=Base)
 db.init_app(app)
-
 
 #Configure Flask-Login's Login Manager
 login_manager = LoginManager()
@@ -55,72 +43,6 @@ login_manager.init_app(app)
 @login_manager.user_loader
 def load_user(user_id):
     return db.get_or_404(User, user_id)
-
-
-#create admin-only decorator
-def admin_only(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        #If id is not 1 return 403 error
-        if current_user.id != 1:
-            return abort(403)
-        #Otherwise continue with the route function
-        return f(*args, **kwargs)
-    return decorated_function
-
-
-def only_commenter(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            return abort(403)
-
-        # Check if the current user has made a comment
-        user_comment = db.session.execute(
-            db.select(Comment).where(Comment.author_id == current_user.id)
-        ).scalar()
-
-        if user_comment is None:
-            return abort(403)
-
-        return f(*args, **kwargs)
-
-    return decorated_function
-
-
-# CONFIGURE TABLE
-class BlogPost(db.Model):
-    __tablename__ = "blog_posts"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    author_id: Mapped[int] = mapped_column(Integer, db.ForeignKey("Users.id"))
-    author = relationship("User", back_populates="posts")
-    title: Mapped[str] = mapped_column(String(250), unique=True, nullable=False)
-    subtitle: Mapped[str] = mapped_column(String(250), nullable=False)
-    date: Mapped[str] = mapped_column(String(250), nullable=False)
-    body: Mapped[str] = mapped_column(Text, nullable=False)
-    # author: Mapped[str] = mapped_column(String(250), nullable=False)
-    img_url: Mapped[str] = mapped_column(String(250), nullable=False)
-    comments = relationship("Comment", back_populates="parent_post")
-
-
-class User(UserMixin, db.Model):
-    __tablename__ = "Users"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    email: Mapped[str] = mapped_column(String(100), unique=True)
-    password: Mapped[str] = mapped_column(String(100))
-    name: Mapped[str] = mapped_column(String(100))
-    posts = relationship("BlogPost", back_populates="author")
-    comments = relationship("Comment", back_populates="comment_author")
-
-
-class Comment(db.Model):
-    __tablename__ = "comments"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    text: Mapped[str] = mapped_column(Text, nullable=False)
-    author_id: Mapped[int] = mapped_column(Integer, db.ForeignKey("Users.id"))
-    comment_author = relationship("User", back_populates="comments")
-    post_id: Mapped[str] = mapped_column(Integer, db.ForeignKey("blog_posts.id"))
-    parent_post = relationship("BlogPost", back_populates="comments")
 
 
 with app.app_context():
@@ -230,7 +152,7 @@ def add_new_post():
             body=form.body.data,
             img_url=form.img_url.data,
             author=current_user,
-            date=date.today().strftime("%B %d, %Y")
+            date=date.today()
         )
         db.session.add(new_post)
         db.session.commit()
@@ -266,6 +188,8 @@ def edit_post(post_id):
 @admin_only
 def delete_post(post_id):
     post_to_delete = db.get_or_404(BlogPost, post_id)
+    # Manually delete all associated comments
+    Comment.query.filter_by(post_id=post_id).delete()
     db.session.delete(post_to_delete)
     db.session.commit()
     return redirect(url_for('get_all_posts'))
@@ -293,23 +217,6 @@ def contact():
         send_email(data["name"], data["email"], data["phone"], data["message"])
         return render_template("contact.html", msg_sent=True, current_user=current_user)
     return render_template("contact.html", msg_sent=False, current_user=current_user)
-
-
-def send_email(name, email, phone, message):
-    email_message = f"Name: {name}\nEmail: {email}\nPhone: {phone}\nMessage:{message}"
-    msg = MIMEText(email_message, "plain", "utf-8")
-    msg["Subject"] = "New Message"
-    msg["From"] = my_email
-    msg["To"] = my_email
-
-    with smtplib.SMTP("smtp.gmail.com", 587) as connection:
-        connection.starttls()
-        connection.login(my_email, my_password)
-        connection.sendmail(
-            from_addr=email,
-            to_addrs=my_email,
-            msg=msg.as_string()
-        )
 
 
 @app.route("/form-entry")
