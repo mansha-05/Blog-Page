@@ -114,7 +114,7 @@ def logout():
 def get_all_posts():
     # TODO: Query the database for all the posts. Convert the data to a python list.
     posts = []
-    result = db.session.execute(db.select(BlogPost))
+    result = db.session.execute(db.select(BlogPost).order_by(BlogPost.date.desc()))
     posts = result.scalars().all()
     return render_template("index.html", all_posts=posts, current_user=current_user)
 
